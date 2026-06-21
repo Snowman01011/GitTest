@@ -1,0 +1,70 @@
+WebStrike: Browser-Based FPS Game Documentation
+1. High-Level Architecture
+The game operates on a Client-Server Architecture utilizing an Authoritative Server model. This means the server makes all final decisions regarding hits, movement, and game state to prevent client-side hacking.
+
+Frontend (Client): HTML Canvas, WebGL, Three.js (Rendering), Tailwind CSS (HUD/UI).
+
+Backend (Server): Node.js, Express (Routing/Lobby), WebSockets/Socket.io (Real-time I/O), or WebRTC (for UDP-like low latency).
+
+Physics Engine: Cannon-es or Ammo.js (running on both client for prediction and server for verification).
+
+2. Tech Stack Breakdown
+The Presentation Layer (Frontend)
+HTML5/DOM: Acts as the container. The PointerLock API is absolutely essential here to lock the user's cursor to the screen for FPS camera control.
+
+Tailwind CSS: Used for the Head-Up Display (HUD). Rendering text, crosshairs, health bars, scoreboards, and menus in the DOM layered over the WebGL canvas is significantly more performant and easier to style than rendering UI in 3D space.
+
+Three.js (WebGL): Handles the 3D scene, lighting, shadows, meshes, and materials.
+
+The Network & Logic Layer (Backend)
+Node.js: The runtime environment running the game loop.
+
+WebSockets: Standard TCP connection for reliable state updates. For an FPS, you will want to configure this to send a fixed "tick rate" (e.g., 20 to 60 times a second).
+
+3. Core Mechanics Implementation
+Movement System
+To replicate Counter-Strike's tight, responsive movement, you cannot rely purely on standard rigid body physics. You need a customized kinematic controller.
+
+Camera Control: Use Three.js PointerLockControls to handle pitch (looking up/down) and yaw (looking left/right).
+
+Movement States: Implement a state machine for walking, sprinting, crouching, and in-air states.
+
+Crouching: Adjust the camera height and the physics hitbox height smoothly over time (lerp) rather than instantly snapping.
+
+Collision Detection: Use simple bounding boxes (AABB) or capsules for player hitboxes. The physics engine evaluates player movement against the map geometry (which should be exported as a simplified NavMesh or collision mesh to save performance).
+
+Gun Mechanics (Shooting & Reloading)
+Counter-Strike relies heavily on Hitscan rather than physical projectiles (except for grenades).
+
+Hitscan: Use THREE.Raycaster. When the player clicks, shoot a ray from the center of the camera straight forward. If it intersects a player's hitbox, register a hit.
+
+Recoil Patterns: Instead of pure random spread, implement fixed or semi-fixed recoil patterns. As the player holds down the trigger, shift the camera's pitch up and yaw side-to-side based on a predefined 2D array of coordinates.
+
+State Management: Weapons need an ammo count, max ammo, and a state machine: IDLE, FIRING, RELOADING, EQUIPPING. Use JavaScript setTimeout or delta-time tracking to handle fire rates (e.g., 100ms between shots) and reload times.
+
+Melee System (Knife)
+Melee in an FPS is essentially a very short-range, delayed raycast or a small volume check.
+
+Hit Detection: Cast a short THREE.Raycaster (e.g., 2 meters) upon clicking.
+
+Primary/Secondary: Implement left-click (fast, low damage) and right-click (slow, high damage, shorter range).
+
+Backstabs: Calculate the dot product of the attacker's forward vector and the victim's forward vector. If the angle indicates the attacker is behind the victim, apply a damage multiplier.
+
+4. Multiplayer Systems (The Hard Part)
+To make the game feel responsive despite internet lag, you must implement three key networking concepts:
+
+Client-Side Prediction: When a player presses "W", the client moves the character immediately on their screen, sending the input to the server simultaneously. It does not wait for the server to say "you moved."
+
+Server Reconciliation: The server calculates the "true" position. If the client's predicted position differs from the server's truth (due to lag or cheating), the server forces the client to snap back to the correct position.
+
+Entity Interpolation: For seeing other players. The server sends position updates (ticks). The client receives these and smoothly animates (lerps) the enemy players between their last known position and their new position, otherwise, enemies would appear to stutter and teleport.
+
+5. Performance & Optimization
+WebGL has limits, and running a multiplayer game requires careful memory management.
+
+Object Pooling: Never create (new) or destroy bullets, decals, or blood splatters dynamically during a firefight. Pre-allocate an array of 100 bullet holes at the start of the game. Move them into place when a shot lands, and hide them when they expire. This prevents garbage collection stutters.
+
+Geometry Instancing: Use THREE.InstancedMesh for rendering multiple identical objects (like crates, barrels, or trees) in a single draw call.
+
+Asset Compression: Use .GLTF or .GLB formats for models and compress them with Draco compression to ensure fast load times in the browser.
